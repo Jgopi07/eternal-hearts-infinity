@@ -95,51 +95,93 @@ export function MusicProvider({ children }: { children: ReactNode }) {
     oscillator.stop(now + duration)
   }, [])
 
-  const playMelody = useCallback(async (melody: typeof ROMANTIC_MELODY) => {
-    if (!audioContextRef.current || !gainNodeRef.current) return
-    
-    isPlayingRef.current = true
-    setIsPlaying(true)
-    
-    let currentTime = audioContextRef.current.currentTime
-    
-    const playLoop = async () => {
-      while (isPlayingRef.current) {
-        for (const { note, duration } of melody) {
-          if (!isPlayingRef.current) return
-          
-          if (note > 0) {
-            const oscillator = audioContextRef.current!.createOscillator()
-            const noteGain = audioContextRef.current!.createGain()
-            
-            oscillator.connect(noteGain)
-            noteGain.connect(gainNodeRef.current!)
-            
-            oscillator.type = 'sine'
-            oscillator.frequency.setValueAtTime(note, currentTime)
-            
-            noteGain.gain.setValueAtTime(0, currentTime)
-            noteGain.gain.linearRampToValueAtTime(0.2, currentTime + 0.05)
-            noteGain.gain.exponentialRampToValueAtTime(0.01, currentTime + duration * 0.9)
-            
-            oscillator.start(currentTime)
-            oscillator.stop(currentTime + duration)
-          }
-          
-          currentTime += duration * 0.5
-          
-          await new Promise(resolve => setTimeout(resolve, duration * 400))
-        }
-        
-        await new Promise(resolve => setTimeout(resolve, 500))
+  const melodyIdRef = useRef(0)
+
+const playMelody = useCallback(async (
+  melody: typeof ROMANTIC_MELODY
+) => {
+
+  if (!audioContextRef.current || !gainNodeRef.current) return
+
+  // CREATE UNIQUE LOOP ID
+  const melodyId = ++melodyIdRef.current
+
+  isPlayingRef.current = true
+  setIsPlaying(true)
+
+  let currentTime = audioContextRef.current.currentTime
+
+  while (
+    isPlayingRef.current &&
+    melodyId === melodyIdRef.current
+  ) {
+
+    for (const { note, duration } of melody) {
+
+      // STOP OLD LOOPS
+      if (
+        !isPlayingRef.current ||
+        melodyId !== melodyIdRef.current
+      ) {
+        return
       }
+
+      if (note > 0) {
+
+        const oscillator =
+          audioContextRef.current.createOscillator()
+
+        const noteGain =
+          audioContextRef.current.createGain()
+
+        oscillator.connect(noteGain)
+
+        noteGain.connect(gainNodeRef.current)
+
+        oscillator.type = 'sine'
+
+        oscillator.frequency.setValueAtTime(
+          note,
+          currentTime
+        )
+
+        noteGain.gain.setValueAtTime(
+          0,
+          currentTime
+        )
+
+        noteGain.gain.linearRampToValueAtTime(
+          0.2,
+          currentTime + 0.05
+        )
+
+        noteGain.gain.exponentialRampToValueAtTime(
+          0.01,
+          currentTime + duration * 0.9
+        )
+
+        oscillator.start(currentTime)
+
+        oscillator.stop(currentTime + duration)
+      }
+
+      currentTime += duration * 0.5
+
+      await new Promise(resolve =>
+        setTimeout(resolve, duration * 400)
+      )
     }
-    
-    playLoop()
-  }, [])
+
+    await new Promise(resolve =>
+      setTimeout(resolve, 500)
+    )
+  }
+
+}, [])
 
   const stopMusic = useCallback(() => {
     isPlayingRef.current = false
+melodyIdRef.current += 1
     setIsPlaying(false)
     if (animationFrameRef.current) {
       cancelAnimationFrame(animationFrameRef.current)
@@ -153,27 +195,41 @@ export function MusicProvider({ children }: { children: ReactNode }) {
   }, [isMuted, musicVolume])
 
   useEffect(() => {
-    if (!hasInteracted) return
+  if (!hasInteracted) return
 
-    initAudio()
-    
-    if (currentScreen === 'splash') {
-      stopMusic()
-    } else if (currentScreen === 'menu' || currentScreen === 'stories' || currentScreen === 'gallery' || currentScreen === 'settings') {
-      if (!isPlayingRef.current) {
-        playMelody(ROMANTIC_MELODY)
-      }
+  initAudio()
+
+  // STOP PREVIOUS MUSIC FIRST
+  stopMusic()
+
+  const timeout = setTimeout(() => {
+
+    if (
+      currentScreen === 'menu' ||
+      currentScreen === 'stories' ||
+      currentScreen === 'gallery' ||
+      currentScreen === 'settings'
+    ) {
+      playMelody(ROMANTIC_MELODY)
+
     } else if (currentScreen === 'game') {
-      stopMusic()
-      setTimeout(() => {
-        playMelody(EMOTIONAL_MELODY)
-      }, 100)
+      playMelody(EMOTIONAL_MELODY)
     }
 
-    return () => {
-      // Don't stop on cleanup to allow continuous playback
-    }
-  }, [currentScreen, hasInteracted, initAudio, playMelody, stopMusic])
+  }, 100)
+
+  return () => {
+    clearTimeout(timeout)
+    stopMusic()
+  }
+
+}, [
+  currentScreen,
+  hasInteracted,
+  initAudio,
+  playMelody,
+  stopMusic
+])
 
   useEffect(() => {
     const handleInteraction = () => {
