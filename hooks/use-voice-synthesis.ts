@@ -26,124 +26,86 @@ export function useVoiceSynthesis() {
     return voiceMap[character.voiceType] || { pitch: 1, rate: 0.9 }
   }
 
- const speak = useCallback(async (
-  text: string,
-  character: Character | null
-) => {
+  const speak = useCallback(async (
+    text: string,
+    character: Character | null
+  ) => {
 
-  if (
-    !voiceEnabled ||
-    typeof window === 'undefined' ||
-    !window.speechSynthesis
-  ) {
-    return
-  }
-
-  window.speechSynthesis.cancel()
-
-  const utterance =
-    new SpeechSynthesisUtterance(text)
-
-  utterance.volume = voiceVolume
-
-  let voices = window.speechSynthesis.getVoices()
-
-// MOBILE FIX
-if (voices.length === 0) {
-
-  await new Promise(resolve =>
-    setTimeout(resolve, 300)
-  )
-
-  voices = window.speechSynthesis.getVoices()
-}
-
-
-  if (character?.gender === 'female') {
-
-    const femaleVoice = voices.find(v =>
-      v.name.includes('Samantha') ||
-      v.name.includes('Victoria') ||
-      v.name.includes('Google UK English Female') ||
-      v.name.includes('Female')
-    )
-
-    if (femaleVoice) {
-      utterance.voice = femaleVoice
+    if (
+      !voiceEnabled ||
+      typeof window === 'undefined' ||
+      !window.speechSynthesis
+    ) {
+      return
     }
 
-   const textLength = text.length
+    window.speechSynthesis.cancel()
 
-// PERFECT TEXT ↔ VOICE SYNC
-const calculatedRate =
-  textLength > 180
-    ? 0.78
-    : textLength > 120
-    ? 0.84
-    : textLength > 60
-    ? 0.9
-    : 0.96
+    const utterance = new SpeechSynthesisUtterance(text)
+    utterance.volume = voiceVolume
 
-if (character?.gender === 'female') {
+    let voices = window.speechSynthesis.getVoices()
 
-  const femaleVoice = voices.find(v =>
-    v.name.includes('Samantha') ||
-    v.name.includes('Victoria') ||
-    v.name.includes('Google UK English Female') ||
-    v.name.includes('Female')
-  )
-
-  if (femaleVoice) {
-    utterance.voice = femaleVoice
-  }
-
-  utterance.pitch = 1.25
-  utterance.rate = calculatedRate
-
-} else {
-
-  const maleVoice = voices.find(v =>
-    v.name.includes('Daniel') ||
-    v.name.includes('Alex') ||
-    v.name.includes('Google UK English Male') ||
-    v.name.includes('Male')
-  )
-
-  if (maleVoice) {
-    utterance.voice = maleVoice
-  }
-
-  // DEEP MALE EFFECT
-  utterance.pitch = 0.72
-  utterance.rate = calculatedRate - 0.05
-}
-
-  } else {
-
-    const maleVoice = voices.find(v =>
-      v.name.includes('Daniel') ||
-      v.name.includes('Alex') ||
-      v.name.includes('Google UK English Male') ||
-      v.name.includes('Male')
-    )
-
-    if (maleVoice) {
-      utterance.voice = maleVoice
+    // MOBILE FIX: voices may not be loaded yet on mobile
+    if (voices.length === 0) {
+      await new Promise(resolve => setTimeout(resolve, 300))
+      voices = window.speechSynthesis.getVoices()
     }
 
-    // MOBILE MALE EFFECT
-    
-  }
+    // PERFECT TEXT ↔ VOICE SYNC
+    const textLength = text.length
+    const calculatedRate =
+      textLength > 180
+        ? 0.78
+        : textLength > 120
+        ? 0.84
+        : textLength > 60
+        ? 0.9
+        : 0.96
 
-  utterance.onstart = () => setIsSpeaking(true)
-  utterance.onend = () => setIsSpeaking(false)
-  utterance.onerror = () => setIsSpeaking(false)
+    if (character?.gender === 'female') {
 
-  utteranceRef.current = utterance
+      const femaleVoice = voices.find(v =>
+        v.name.includes('Samantha') ||
+        v.name.includes('Victoria') ||
+        v.name.includes('Google UK English Female') ||
+        v.name.includes('Female')
+      )
 
-  window.speechSynthesis.speak(utterance)
+      if (femaleVoice) {
+        utterance.voice = femaleVoice
+      }
 
-}, [voiceEnabled, voiceVolume])
+      utterance.pitch = 1.25
+      utterance.rate = calculatedRate
+
+    } else {
+
+      // MALE VOICE — pitch and rate were missing here (mobile bug fix)
+      const maleVoice = voices.find(v =>
+        v.name.includes('Daniel') ||
+        v.name.includes('Alex') ||
+        v.name.includes('Google UK English Male') ||
+        v.name.includes('Male')
+      )
+
+      if (maleVoice) {
+        utterance.voice = maleVoice
+      }
+
+      // DEEP MALE EFFECT — applied on all platforms including mobile
+      utterance.pitch = 0.72
+      utterance.rate = calculatedRate - 0.05
+    }
+
+    utterance.onstart = () => setIsSpeaking(true)
+    utterance.onend = () => setIsSpeaking(false)
+    utterance.onerror = () => setIsSpeaking(false)
+
+    utteranceRef.current = utterance
+    window.speechSynthesis.speak(utterance)
+
+  }, [voiceEnabled, voiceVolume])
 
   const stop = useCallback(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
