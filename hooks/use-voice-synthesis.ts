@@ -26,47 +26,124 @@ export function useVoiceSynthesis() {
     return voiceMap[character.voiceType] || { pitch: 1, rate: 0.9 }
   }
 
-  const speak = useCallback((text: string, character: Character | null) => {
-    if (!voiceEnabled || typeof window === 'undefined' || !window.speechSynthesis) {
-      return
+ const speak = useCallback(async (
+  text: string,
+  character: Character | null
+) => {
+
+  if (
+    !voiceEnabled ||
+    typeof window === 'undefined' ||
+    !window.speechSynthesis
+  ) {
+    return
+  }
+
+  window.speechSynthesis.cancel()
+
+  const utterance =
+    new SpeechSynthesisUtterance(text)
+
+  utterance.volume = voiceVolume
+
+  let voices = window.speechSynthesis.getVoices()
+
+// MOBILE FIX
+if (voices.length === 0) {
+
+  await new Promise(resolve =>
+    setTimeout(resolve, 300)
+  )
+
+  voices = window.speechSynthesis.getVoices()
+}
+
+
+  if (character?.gender === 'female') {
+
+    const femaleVoice = voices.find(v =>
+      v.name.includes('Samantha') ||
+      v.name.includes('Victoria') ||
+      v.name.includes('Google UK English Female') ||
+      v.name.includes('Female')
+    )
+
+    if (femaleVoice) {
+      utterance.voice = femaleVoice
     }
 
-    window.speechSynthesis.cancel()
+   const textLength = text.length
 
-    const utterance = new SpeechSynthesisUtterance(text)
-    const settings = getVoiceSettings(character)
-    
-    utterance.pitch = settings.pitch
-    utterance.rate = settings.rate
-    utterance.volume = voiceVolume
+// PERFECT TEXT ↔ VOICE SYNC
+const calculatedRate =
+  textLength > 180
+    ? 0.78
+    : textLength > 120
+    ? 0.84
+    : textLength > 60
+    ? 0.9
+    : 0.96
 
-    const voices = window.speechSynthesis.getVoices()
-    
-    if (character?.gender === 'female') {
-      const femaleVoice = voices.find(v => 
-        v.name.toLowerCase().includes('female') || 
-        v.name.toLowerCase().includes('samantha') ||
-        v.name.toLowerCase().includes('victoria') ||
-        v.name.toLowerCase().includes('karen')
-      )
-      if (femaleVoice) utterance.voice = femaleVoice
-    } else {
-      const maleVoice = voices.find(v => 
-        v.name.toLowerCase().includes('male') || 
-        v.name.toLowerCase().includes('daniel') ||
-        v.name.toLowerCase().includes('alex') ||
-        v.name.toLowerCase().includes('tom')
-      )
-      if (maleVoice) utterance.voice = maleVoice
+if (character?.gender === 'female') {
+
+  const femaleVoice = voices.find(v =>
+    v.name.includes('Samantha') ||
+    v.name.includes('Victoria') ||
+    v.name.includes('Google UK English Female') ||
+    v.name.includes('Female')
+  )
+
+  if (femaleVoice) {
+    utterance.voice = femaleVoice
+  }
+
+  utterance.pitch = 1.25
+  utterance.rate = calculatedRate
+
+} else {
+
+  const maleVoice = voices.find(v =>
+    v.name.includes('Daniel') ||
+    v.name.includes('Alex') ||
+    v.name.includes('Google UK English Male') ||
+    v.name.includes('Male')
+  )
+
+  if (maleVoice) {
+    utterance.voice = maleVoice
+  }
+
+  // DEEP MALE EFFECT
+  utterance.pitch = 0.72
+  utterance.rate = calculatedRate - 0.05
+}
+
+  } else {
+
+    const maleVoice = voices.find(v =>
+      v.name.includes('Daniel') ||
+      v.name.includes('Alex') ||
+      v.name.includes('Google UK English Male') ||
+      v.name.includes('Male')
+    )
+
+    if (maleVoice) {
+      utterance.voice = maleVoice
     }
 
-    utterance.onstart = () => setIsSpeaking(true)
-    utterance.onend = () => setIsSpeaking(false)
-    utterance.onerror = () => setIsSpeaking(false)
+    // MOBILE MALE EFFECT
+    
+  }
 
-    utteranceRef.current = utterance
-    window.speechSynthesis.speak(utterance)
-  }, [voiceEnabled, voiceVolume])
+  utterance.onstart = () => setIsSpeaking(true)
+  utterance.onend = () => setIsSpeaking(false)
+  utterance.onerror = () => setIsSpeaking(false)
+
+  utteranceRef.current = utterance
+
+  window.speechSynthesis.speak(utterance)
+
+}, [voiceEnabled, voiceVolume])
 
   const stop = useCallback(() => {
     if (typeof window !== 'undefined' && window.speechSynthesis) {
